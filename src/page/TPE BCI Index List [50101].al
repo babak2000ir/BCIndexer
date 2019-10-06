@@ -4,6 +4,7 @@ page 50101 "TPE BCI Index List"
     ApplicationArea = All;
     UsageCategory = Lists;
     SourceTable = "TPE BCI Index250";
+    SourceTableTemporary = true;
 
     layout
     {

@@ -54,10 +54,6 @@ codeunit 50100 "TPE BCI Indexer Mgmt."
 
     procedure fctGetDeepSearchValue(precId: RecordId): Text;
     var
-        lrecCustomer: record Customer;
-        lrecVendor: record Customer;
-        lrecSalesInvoice: Record "Sales Invoice Header";
-        lrecPurchaseInvoice: Record "Purch. Inv. Header";
         lRecRef: RecordRef;
         lFieldRef: FieldRef;
     begin
@@ -95,78 +91,105 @@ codeunit 50100 "TPE BCI Indexer Mgmt."
         lRecRef: RecordRef;
         lFieldRef: FieldRef;
     begin
+        lrecTableSetup.reset;
         if lrecTableSetup.FindSet(false, false) then
             repeat
-                lrecTableFieldsSetup.reset;
-                lrecTableFieldsSetup.setrange("Table No.", lrecTableSetup."Table No.");
-                lrecTableFieldsSetup.setfilter("Field No.", '<>%1', 0);
-                if lrecTableFieldsSetup.findset then begin
-                    lRecRef.open(lrecTableSetup."Table No.");
+                lRecRef.open(lrecTableSetup."Table No.");
+                if lRecRef.FindSet(false, false) then
                     repeat
-                        if lRecRef.FindSet(false, false) then begin
-                            lFieldRef := lRecRef.Field(lrecTableFieldsSetup."Field No.");
-                            fctIndexRecord(lRecRef.RecordId, lFieldRef.Value);
-                            Commit;
+                        lrecTableFieldsSetup.reset;
+                        lrecTableFieldsSetup.setrange("Table No.", lrecTableSetup."Table No.");
+                        lrecTableFieldsSetup.setfilter("Field No.", '<>%1', 0);
+                        if lrecTableFieldsSetup.findset then begin
+                            repeat
+                                lFieldRef := lRecRef.Field(lrecTableFieldsSetup."Field No.");
+                                fctIndexRecord(lRecRef.RecordId, lFieldRef.Value);
+                                Commit;
+                            until lrecTableFieldsSetup.next = 0;
                         end;
-                    until lrecTableFieldsSetup.next = 0;
-                end;
+                    until lRecRef.Next = 0;
             until lrecTableSetup.next = 0;
-
-        /* if lrecCustomer.FindSet(false, false) then
-            repeat
-                fctIndexRecord(lrecCustomer.RecordId, lrecCustomer."No.");
-                fctIndexRecord(lrecCustomer.RecordId, lrecCustomer.Name);
-                fctIndexRecord(lrecCustomer.RecordId, lrecCustomer."Name 2");
-                fctIndexRecord(lrecCustomer.RecordId, lrecCustomer.City);
-                fctIndexRecord(lrecCustomer.RecordId, lrecCustomer."Country/Region Code");
-            until lrecCustomer.next = 0;
-
-        if lrecVendor.FindSet(false, false) then
-            repeat
-                fctIndexRecord(lrecVendor.RecordId, lrecVendor."No.");
-                fctIndexRecord(lrecVendor.RecordId, lrecVendor.Name);
-                fctIndexRecord(lrecVendor.RecordId, lrecVendor."Name 2");
-                fctIndexRecord(lrecVendor.RecordId, lrecVendor.City);
-                fctIndexRecord(lrecVendor.RecordId, lrecVendor."Country/Region Code");
-            until lrecVendor.next = 0;
-
-        if lrecSalesInvoice.FindSet(false, false) then
-            repeat
-                fctIndexRecord(lrecSalesInvoice.RecordId, lrecSalesInvoice."Bill-to Customer No.");
-                fctIndexRecord(lrecSalesInvoice.RecordId, lrecSalesInvoice."Sell-to Customer Name");
-                fctIndexRecord(lrecSalesInvoice.RecordId, lrecSalesInvoice."No.");
-                fctIndexRecord(lrecSalesInvoice.RecordId, lrecSalesInvoice."External Document No.");
-                fctIndexRecord(lrecSalesInvoice.RecordId, lrecSalesInvoice."Bill-to Country/Region Code");
-                fctIndexRecord(lrecSalesInvoice.RecordId, lrecSalesInvoice."Bill-to City");
-            until lrecSalesInvoice.next = 0;
-
-        if lrecPurchaseInvoice.FindSet(false, false) then
-            repeat
-                fctIndexRecord(lrecPurchaseInvoice.RecordId, lrecPurchaseInvoice."Pay-to Vendor No.");
-                fctIndexRecord(lrecPurchaseInvoice.RecordId, lrecPurchaseInvoice."Buy-from Vendor Name");
-                fctIndexRecord(lrecPurchaseInvoice.RecordId, lrecPurchaseInvoice."No.");
-                fctIndexRecord(lrecPurchaseInvoice.RecordId, lrecPurchaseInvoice."Your Reference");
-                fctIndexRecord(lrecPurchaseInvoice.RecordId, lrecPurchaseInvoice."Pay-to Country/Region Code");
-                fctIndexRecord(lrecPurchaseInvoice.RecordId, lrecPurchaseInvoice."Pay-to City");
-            until lrecPurchaseInvoice.next = 0; */
     end;
 
     local procedure fctIndexRecord(precId: RecordId; ptxtContent: text)
     var
-        lrecIndex: record "TPE BCI Index250";
+        lRecRef: RecordRef;
     begin
         if ptxtContent <> '' then begin
-            lrecIndex.SetCurrentKey("Record Id", "Searchable Content");
-            lrecIndex.SetRange("Record Id", precId);
-            lrecIndex.SetRange("Searchable Content", ptxtContent);
-            if lrecIndex.IsEmpty then begin
-                lrecIndex.init;
-                lrecIndex."Record Id" := precId;
-                lrecIndex."Table Id" := precId.TableNo;
-                lrecIndex."Searchable Content" := UpperCase(ptxtContent);
-                lrecIndex.Insert;
+            case StrLen(ptxtContent) of
+                1 .. 20:
+                    begin
+                        lRecRef.Open(Database::"TPE BCI Index20");
+                    end;
+                21 .. 100:
+                    begin
+                        lRecRef.Open(Database::"TPE BCI Index100");
+                    end;
+                101 .. 250:
+                    begin
+                        lRecRef.Open(Database::"TPE BCI Index250");
+                    end;
+            end;
+
+            lRecRef.CurrentKeyIndex(2);
+
+            lRecRef.Field(20).SetRange(precId);
+            lRecRef.Field(10).SetRange(ptxtContent);
+
+            if lRecRef.IsEmpty then begin
+                lRecRef.init;
+                lRecRef.Field(20).Value(precId);
+                lRecRef.Field(21).value(precId.TableNo);
+                lRecRef.Field(10).Value(UpperCase(ptxtContent));
+                lRecRef.Insert;
             end;
         end;
+    end;
+
+    //Misc
+    procedure fctCompileAllindices(var precIndex: record "TPE BCI Index250" temporary)
+    var
+        lrecIndex20: Record "TPE BCI Index20";
+        lrecIndex100: Record "TPE BCI Index100";
+        lrecIndex250: Record "TPE BCI Index250";
+        lintCounter: BigInteger;
+    begin
+        clear(precIndex);
+        precIndex.DeleteAll();
+        lintCounter := 0;
+
+        lrecIndex20.reset;
+        if lrecIndex20.findset then
+            repeat
+                lintCounter += 1;
+
+                precIndex.Init();
+                precIndex.TransferFields(lrecIndex20);
+                precIndex."Entry No." := lintCounter;
+                precIndex.insert;
+            until lrecIndex20.next = 0;
+
+        lrecIndex100.reset;
+        if lrecIndex100.findset then
+            repeat
+                lintCounter += 1;
+
+                precIndex.Init();
+                precIndex.TransferFields(lrecIndex100);
+                precIndex."Entry No." := lintCounter;
+                precIndex.insert;
+            until lrecIndex100.next = 0;
+
+        lrecIndex250.reset;
+        if lrecIndex250.findset then
+            repeat
+                lintCounter += 1;
+
+                precIndex.Init();
+                precIndex.TransferFields(lrecIndex250);
+                precIndex."Entry No." := lintCounter;
+                precIndex.insert;
+            until lrecIndex250.next = 0;
     end;
 
     var
