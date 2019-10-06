@@ -4,7 +4,7 @@ table 50102 "TPE BCI Index250"
 
     fields
     {
-        field(1; "Entry No."; Integer)
+        field(1; "Entry No."; BigInteger)
         {
             AutoIncrement = true;
             DataClassification = SystemMetadata;
@@ -39,7 +39,6 @@ table 50102 "TPE BCI Index250"
             MaintainSQLIndex = true;
             SQLIndex = "Record Id", "Searchable Content";
         }
-
         key(SK3; "Table Id")
         {
             MaintainSQLIndex = true;
